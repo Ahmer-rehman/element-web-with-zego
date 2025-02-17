@@ -301,10 +301,6 @@ export const CATEGORIES: Record<CategoryName, ICategory> = {
             KeyBindingAction.ForceCompleteAutocomplete,
         ],
     },
-    [CategoryName.LABS]: {
-        categoryLabel: _td("common|labs"),
-        settingNames: [KeyBindingAction.ToggleHiddenEventVisibility],
-    },
 };
 
 export const DESKTOP_SHORTCUTS = [

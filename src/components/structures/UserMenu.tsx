@@ -386,18 +386,6 @@ export default class UserMenu extends React.Component<IProps, IState> {
                             )}
                         </span>
                     </div>
-
-                    <RovingAccessibleButton
-                        className="mx_UserMenu_contextMenu_themeButton"
-                        onClick={this.onSwitchThemeClick}
-                        title={
-                            this.state.isDarkTheme
-                                ? _t("user_menu|switch_theme_light")
-                                : _t("user_menu|switch_theme_dark")
-                        }
-                    >
-                        <img src={DarkLightModeSvg} role="presentation" alt="" width={16} />
-                    </RovingAccessibleButton>
                 </div>
                 {topSection}
                 {primaryOptionList}

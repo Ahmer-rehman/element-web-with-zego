@@ -49,8 +49,6 @@ import { type OpenReportEventDialogPayload } from "../../../dispatcher/payloads/
 import { createMapSiteLinkFromEvent } from "../../../utils/location";
 import { getForwardableEvent } from "../../../events/forward/getForwardableEvent";
 import { getShareableLocationEvent } from "../../../events/location/getShareableLocationEvent";
-import { type ShowThreadPayload } from "../../../dispatcher/payloads/ShowThreadPayload";
-import { CardContext } from "../right_panel/context";
 import PinningUtils from "../../../utils/PinningUtils";
 import PosthogTrackers from "../../../PosthogTrackers.ts";
 
@@ -59,41 +57,41 @@ interface IReplyInThreadButton {
     closeMenu: () => void;
 }
 
-const ReplyInThreadButton: React.FC<IReplyInThreadButton> = ({ mxEvent, closeMenu }) => {
-    const context = useContext(CardContext);
-    const relationType = mxEvent?.getRelation()?.rel_type;
+// const ReplyInThreadButton: React.FC<IReplyInThreadButton> = ({ mxEvent, closeMenu }) => {
+//     const context = useContext(CardContext);
+//     const relationType = mxEvent?.getRelation()?.rel_type;
 
-    // Can't create a thread from an event with an existing relation
-    if (Boolean(relationType) && relationType !== RelationType.Thread) return null;
+//     // Can't create a thread from an event with an existing relation
+//     if (Boolean(relationType) && relationType !== RelationType.Thread) return null;
 
-    const onClick = (): void => {
-        if (mxEvent.getThread() && !mxEvent.isThreadRoot) {
-            dis.dispatch<ShowThreadPayload>({
-                action: Action.ShowThread,
-                rootEvent: mxEvent.getThread()!.rootEvent!,
-                initialEvent: mxEvent,
-                scroll_into_view: true,
-                highlighted: true,
-                push: context.isCard,
-            });
-        } else {
-            dis.dispatch<ShowThreadPayload>({
-                action: Action.ShowThread,
-                rootEvent: mxEvent,
-                push: context.isCard,
-            });
-        }
-        closeMenu();
-    };
+//     const onClick = (): void => {
+//         if (mxEvent.getThread() && !mxEvent.isThreadRoot) {
+//             dis.dispatch<ShowThreadPayload>({
+//                 action: Action.ShowThread,
+//                 rootEvent: mxEvent.getThread()!.rootEvent!,
+//                 initialEvent: mxEvent,
+//                 scroll_into_view: true,
+//                 highlighted: true,
+//                 push: context.isCard,
+//             });
+//         } else {
+//             dis.dispatch<ShowThreadPayload>({
+//                 action: Action.ShowThread,
+//                 rootEvent: mxEvent,
+//                 push: context.isCard,
+//             });
+//         }
+//         closeMenu();
+//     };
 
-    return (
-        <IconizedContextMenuOption
-            iconClassName="mx_MessageContextMenu_iconReplyInThread"
-            label={_t("action|reply_in_thread")}
-            onClick={onClick}
-        />
-    );
-};
+//     return (
+//         <IconizedContextMenuOption
+//             iconClassName="mx_MessageContextMenu_iconReplyInThread"
+//             label={_t("action|reply_in_thread")}
+//             onClick={onClick}
+//         />
+//     );
+// };
 
 interface IProps extends MenuProps {
     /* the MatrixEvent associated with the context menu */
@@ -420,14 +418,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             );
         }
 
-        // This is specifically not behind the developerMode flag to give people insight into the Matrix
-        const viewSourceButton = (
-            <IconizedContextMenuOption
-                iconClassName="mx_MessageContextMenu_iconSource"
-                label={_t("timeline|context_menu|view_source")}
-                onClick={this.onViewSourceClick}
-            />
-        );
+
 
         let unhidePreviewButton: JSX.Element | undefined;
         if (eventTileOps?.isWidgetHidden()) {
@@ -443,20 +434,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         let permalinkButton: JSX.Element | undefined;
         if (permalink) {
             permalinkButton = (
-                <IconizedContextMenuOption
-                    iconClassName="mx_MessageContextMenu_iconPermalink"
-                    onClick={this.onShareClick}
-                    label={_t("action|share")}
-                    element="a"
-                    {
-                        // XXX: Typescript signature for AccessibleButton doesn't work properly for non-inputs like `a`
-                        ...{
-                            href: permalink,
-                            target: "_blank",
-                            rel: "noreferrer noopener",
-                        }
-                    }
-                />
+             <></>
             );
         }
 
@@ -583,16 +561,6 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             );
         }
 
-        let replyInThreadButton: JSX.Element | undefined;
-        if (
-            rightClick &&
-            contentActionable &&
-            canSendMessages &&
-            Thread.hasServerSideSupport &&
-            timelineRenderingType !== TimelineRenderingType.Thread
-        ) {
-            replyInThreadButton = <ReplyInThreadButton mxEvent={mxEvent} closeMenu={this.closeMenu} />;
-        }
 
         let reactButton: JSX.Element | undefined;
         if (rightClick && contentActionable && canReact) {
@@ -645,7 +613,6 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
                 <IconizedContextMenuOptionList>
                     {reactButton}
                     {replyButton}
-                    {replyInThreadButton}
                     {editButton}
                     {pinButton}
                 </IconizedContextMenuOptionList>
@@ -663,7 +630,6 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
                 {externalURLButton}
                 {jumpToRelatedEventButton}
                 {unhidePreviewButton}
-                {viewSourceButton}
                 {resendReactionsButton}
                 {collapseReplyChainButton}
             </IconizedContextMenuOptionList>

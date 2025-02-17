@@ -479,8 +479,7 @@ describe("MessageContextMenu", () => {
 
             createRightClickMenu(mxEvent, context);
 
-            const replyInThreadButton = document.querySelector('li[aria-label="Reply in thread"]')!;
-            fireEvent.click(replyInThreadButton);
+      
 
             expect(dispatcher.dispatch).toHaveBeenCalledWith({
                 action: Action.ShowThread,

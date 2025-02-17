@@ -458,7 +458,6 @@ export default class MessageActionBar extends React.PureComponent<IMessageAction
             </RovingAccessibleButton>
         );
 
-        const threadTooltipButton = <ReplyInThreadButton mxEvent={this.props.mxEvent} key="reply_thread" />;
 
         // We show a different toolbar for failed events, so detect that first.
         const mxEvent = this.props.mxEvent;
@@ -493,9 +492,6 @@ export default class MessageActionBar extends React.PureComponent<IMessageAction
                 // button is the very first button without having to do length checks for `splice()`.
 
                 if (this.context.canSendMessages) {
-                    if (this.showReplyInThreadAction) {
-                        toolbarOpts.splice(0, 0, threadTooltipButton);
-                    }
                     toolbarOpts.splice(
                         0,
                         0,
@@ -511,6 +507,7 @@ export default class MessageActionBar extends React.PureComponent<IMessageAction
                         </RovingAccessibleButton>,
                     );
                 }
+                
                 // We hide the react button in search results as we don't show reactions in results
                 if (this.context.canReact && !this.context.search) {
                     toolbarOpts.splice(
