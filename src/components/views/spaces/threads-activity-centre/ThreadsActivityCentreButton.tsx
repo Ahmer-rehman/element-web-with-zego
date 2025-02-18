@@ -8,11 +8,11 @@
 import React, { useState, useEffect } from 'react';
 import { BsClockHistory } from 'react-icons/bs';
 import { FaPhone } from 'react-icons/fa';
-import { LuPhoneIncoming, LuPhoneOutgoing } from 'react-icons/lu'; // New icons
+import { LuPhoneIncoming, LuPhoneOutgoing } from 'react-icons/lu';
 
 // Firebase imports
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -29,7 +29,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 export const ThreadsActivityCentreButton = () => {
-  // State to manage the overlay visibility and fetched call logs
+  // State to manage overlay visibility and fetched call logs
   const [isOverlayVisible, setOverlayVisible] = useState(false);
   const [callLogs, setCallLogs] = useState([]);
 
@@ -43,46 +43,41 @@ export const ThreadsActivityCentreButton = () => {
     setOverlayVisible(false);
   };
 
-  // Function to fetch call logs from Firebase Firestore
-  const fetchCallLogs = async () => {
-    try {
-      // Retrieve the current user ID using the key "mx_user_id"
-      const currentUserId = localStorage.getItem("mx_user_id") || "";
-      
-      // The Firestore path will be:
-      // calllogs -> @ahmer-eng:ms.beep.gov.pk -> calls
-      const callsCollectionRef = collection(db, "calllogs", currentUserId, "calls");
-      
-      // Fetch all documents in the subcollection
-      const querySnapshot = await getDocs(callsCollectionRef);
-      const logs = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      // Update state with the fetched call logs
-      setCallLogs(logs);
-    } catch (error) {
-      console.error("Error fetching call logs:", error);
-    }
-  };
-
-  // Log call logs to the console for debugging
-  console.log(callLogs);
-
-  // Use useEffect to fetch call logs when the overlay is opened
+  // Realtime listener: fetch and sort call logs (latest by time first)
   useEffect(() => {
+    let unsubscribe;
     if (isOverlayVisible) {
-      fetchCallLogs();
+      const currentUserId = localStorage.getItem("mx_user_id") || "";
+      const callsCollectionRef = collection(db, "calllogs", currentUserId, "calls");
+
+      unsubscribe = onSnapshot(callsCollectionRef, (snapshot) => {
+        const logs = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }))
+          .sort((a, b) => {
+            const dateA = a.date ? new Date(a.date).getTime() : 0;
+            const dateB = b.date ? new Date(b.date).getTime() : 0;
+            return dateB - dateA;
+          });
+
+        setCallLogs(logs);
+      });
     }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [isOverlayVisible]);
 
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
         <button
-          style={{ border: 'none', background: 'none', display: 'flex' }}
+          style={{ border: 'none', background: 'none', display: 'flex', cursor: 'pointer' }}
           onClick={handleCallLogClick}
+          aria-label="Show call logs"
         >
           <BsClockHistory
             size={24}
@@ -99,7 +94,7 @@ export const ThreadsActivityCentreButton = () => {
         </button>
       </div>
 
-      {/* Overlay with right side panel */}
+      {/* Overlay */}
       {isOverlayVisible && (
         <div
           style={{
@@ -111,7 +106,7 @@ export const ThreadsActivityCentreButton = () => {
             zIndex: 9999,
           }}
         >
-          {/* Backdrop to cover entire screen */}
+          {/* Backdrop */}
           <div
             style={{
               position: 'absolute',
@@ -128,8 +123,8 @@ export const ThreadsActivityCentreButton = () => {
           <div
             style={{
               position: 'absolute',
-              top: "2px",
-              right: "7px",
+              top: '2px',
+              right: '7px',
               bottom: 0,
               width: '300px',
               background: '#fff',
@@ -137,74 +132,78 @@ export const ThreadsActivityCentreButton = () => {
               boxShadow: '-2px 0 5px rgba(0, 0, 0, 0.3)',
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              overflowY: 'auto',
-              border: "6px solid lightgrey",
-              borderRadius:"10px",
-              height: "94vh",
+              border: '6px solid lightgrey',
+              borderRadius: '10px',
+              height: '94vh',
+              zIndex: 10001,
             }}
+            onClick={(e) => e.stopPropagation()} // Prevent clicks inside the panel from closing the overlay
           >
-            {callLogs && callLogs.length > 0 ? (
-              <ul style={{ listStyle: 'none', padding: 0, width: '100%' }}>
-                {callLogs.map((log) => {
-                  // Determine the call type text based on isIncoming and isVideoCall
-                  const callTypeText = log.isIncoming 
-                    ? (log.isVideoCall ? "Incoming Video Call" : "Incoming Audio Call")
-                    : (log.isVideoCall ? "Outgoing Video Call" : "Outgoing Audio Call");
+            {/* Close button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+              <button
+                onClick={handleOverlayClose}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                }}
+                aria-label="Close call logs"
+              >
+                X
+              </button>
+            </div>
 
-                  return (
+            <div style={{ width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+              {callLogs && callLogs.length > 0 ? (
+                // Reverse the sorted logs array before mapping to display in reverse order.
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {callLogs.slice().reverse().map((log) => (
                     <li
                       key={log.id}
                       style={{
-                        borderBottom: "1px solid #ccc",
-                        marginBottom: "10px",
-                        paddingBottom: "10px",
-                        display: "flex",
-                        alignItems: "center",
+                        borderBottom: '1px solid #ccc',
+                        marginBottom: '10px',
+                        paddingBottom: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
                       }}
                     >
+                      {log.isIncoming ? (
+                        <LuPhoneIncoming style={{ color: 'red', marginRight: '10px' }} />
+                      ) : (
+                        <LuPhoneOutgoing style={{ color: 'green', marginRight: '10px' }} />
+                      )}
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: "bold" }}>
-                          {log.name && Array.isArray(log.name)
-                            ? log.name.join(", ")
-                            : "Unknown"}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          {log.isIncoming ? (
-                            <LuPhoneIncoming style={{ color: 'red', marginRight: '5px' }} />
+                        {/* Split the log.name into two lines if it contains ' - ' */}
+                        <div style={{ fontWeight: 'bold' }}>
+                          {log.name &&
+                          typeof log.name === 'string' &&
+                          log.name.includes(' - ') ? (
+                            <>
+                              <div>{log.name.split(' - ')[0].trim()}</div>
+                              <div style={{ fontSize: '0.85em', color: '#555' }}>
+                                {log.name.split(' - ')[1].trim()}
+                              </div>
+                            </>
                           ) : (
-                            <LuPhoneOutgoing style={{ color: 'green', marginRight: '5px' }} />
+                            log.name || 'Unknown'
                           )}
-                          <span>
-                            {callTypeText}
-                            {log.isMissedCall ? " - Missed" : ""}
-                          </span>
                         </div>
-                        {log.date && <div>Date: {log.date}</div>}
+                        {log.date && (
+                          <div>
+                            Date: {new Date(log.date).toLocaleString()}
+                          </div>
+                        )}
                       </div>
                     </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p>No call logs found.</p>
-            )}
-
-            <button
-              onClick={handleOverlayClose}
-              style={{
-                padding: '10px 20px',
-                border: 'none',
-                borderRadius: '4px',
-                background: '#818a95',
-                color: '#fff',
-                cursor: 'pointer',
-                marginTop: '20px'
-              }}
-            >
-              Close
-            </button>
+                  ))}
+                </ul>
+              ) : (
+                <p>No call logs found.</p>
+              )}
+            </div>
           </div>
         </div>
       )}
