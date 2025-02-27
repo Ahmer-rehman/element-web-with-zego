@@ -51,15 +51,18 @@ export default class AuthPage extends React.PureComponent<React.PropsWithChildre
             right: 0,
             bottom: 0,
             left: 0,
-            filter: "blur(40px)",
             background: pageStyle.background,
         };
 
         const modalContentStyle: React.CSSProperties = {
             display: "flex",
+            flexDirection:"column",
             zIndex: 1,
             background: "rgba(255, 255, 255, 0.59)",
             borderRadius: "8px",
+            justifyContent:"center",
+            alignItems:"center",
+            width: "100%",
         };
 
         return (

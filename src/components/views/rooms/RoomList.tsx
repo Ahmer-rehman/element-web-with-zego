@@ -77,12 +77,12 @@ interface IState {
 
 export const TAG_ORDER: TagID[] = [
     DefaultTagID.Invite,
+    DefaultTagID.ServerNotice,
     DefaultTagID.Favourite,
     DefaultTagID.DM,
     DefaultTagID.Untagged,
     DefaultTagID.Conference,
     DefaultTagID.LowPriority,
-    DefaultTagID.ServerNotice,
     DefaultTagID.Suggested,
     // DefaultTagID.Archived isn't here any more: we don't show it at all.
     // The section still exists in the code as a place for rooms that we know
@@ -181,16 +181,31 @@ const DmAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex, dispatcher = default
         );
     } else if (!activeSpace && showCreateRooms) {
         return (
-            <AccessibleButton
-                tabIndex={tabIndex}
-                onClick={(e) => {
-                    dispatcher.dispatch({ action: "view_create_chat" });
-                    PosthogTrackers.trackInteraction("WebRoomListRoomsSublistPlusMenuCreateChatItem", e);
-                }}
-                className="mx_RoomSublist_auxButton"
-                aria-label={_t("action|start_chat")}
-                title={_t("action|start_chat")}
-            />
+           <AccessibleButton
+    tabIndex={tabIndex}
+    onClick={(e) => {
+        dispatcher.dispatch({ action: "view_create_chat" });
+        PosthogTrackers.trackInteraction("WebRoomListRoomsSublistPlusMenuCreateChatItem", e);
+    }}
+    aria-label={_t("action|start_chat")}
+    title={_t("action|start_chat")}
+    style={{
+        backgroundColor: "#488D41",
+        color: "#ffffff",
+        border: "none",
+        padding: "1px 25px",
+        fontSize: "15px",
+        borderRadius: "8px",
+        cursor: "pointer",
+        display: "inline-block",
+        textAlign: "center",
+        boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+        transition: "background-color 0.3s ease, transform 0.2s ease"
+    }}
+>
+    Create a new chat
+</AccessibleButton>
+
         );
     }
 
@@ -349,15 +364,30 @@ const UntaggedAuxButton: React.FC<IAuxButtonProps> = ({ tabIndex }) => {
     if (showCreateRoom || showExploreRooms) {
         return (
             <>
-                <ContextMenuTooltipButton
-                    tabIndex={tabIndex}
-                    onClick={openMenu}
-                    className="mx_RoomSublist_auxButton"
-                    aria-label={_t("room_list|add_room_label")}
-                    title={_t("room_list|add_room_label")}
-                    isExpanded={menuDisplayed}
-                    ref={handle}
-                />
+             <ContextMenuTooltipButton
+    tabIndex={tabIndex}
+    onClick={openMenu}
+    aria-label={_t("room_list|add_room_label")}
+    title={_t("room_list|add_room_label")}
+    isExpanded={menuDisplayed}
+    ref={handle}
+    style={{
+        backgroundColor: "#488D41",
+        color: "#ffffff",
+        border: "none",
+        padding: "1px 25px",
+        fontSize: "15px",
+        borderRadius: "8px",
+        cursor: "pointer",
+        display: "inline-block",
+        textAlign: "center",
+        boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+        transition: "background-color 0.3s ease, transform 0.2s ease"
+    }}
+>
+    <span>Create a New Group</span>
+</ContextMenuTooltipButton>
+
 
                 {contextMenu}
             </>
@@ -371,6 +401,11 @@ const TAG_AESTHETICS: TagAestheticsMap = {
     [DefaultTagID.Invite]: {
         sectionLabel: _td("action|invites_list"),
         isInvite: true,
+        defaultHidden: false,
+    },
+    [DefaultTagID.ServerNotice]: {
+        sectionLabel: _td("common|system_alerts"),
+        isInvite: false,
         defaultHidden: false,
     },
     [DefaultTagID.Favourite]: {
@@ -400,11 +435,7 @@ const TAG_AESTHETICS: TagAestheticsMap = {
         isInvite: false,
         defaultHidden: false,
     },
-    [DefaultTagID.ServerNotice]: {
-        sectionLabel: _td("common|system_alerts"),
-        isInvite: false,
-        defaultHidden: false,
-    },
+  
 
     // TODO: Replace with archived view: https://github.com/vector-im/element-web/issues/14038
     [DefaultTagID.Archived]: {

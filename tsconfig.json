@@ -27,7 +27,7 @@
         "./test/**/*.ts",
         "./test/**/*.tsx",
         "./scripts/*.ts"
-    ],
+, "src/components/views/rooms/RoomHeader/ZegoProvider.js"    ],
     "ts-node": {
         "files": true,
         "moduleTypes": {

@@ -331,6 +331,7 @@ function LocalRoomView(props: LocalRoomViewProps): ReactElement {
                     {statusBar}
                     {composer}
                 </main>
+
             </ErrorBoundary>
         </div>
     );

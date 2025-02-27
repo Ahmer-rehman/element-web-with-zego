@@ -16,7 +16,7 @@ import React, { type ReactElement, StrictMode } from "react";
 import { logger } from "matrix-js-sdk/src/logger";
 import { createClient, AutoDiscovery, type ClientConfig } from "matrix-js-sdk/src/matrix";
 import { WrapperLifecycle, type WrapperOpts } from "@matrix-org/react-sdk-module-api/lib/lifecycles/WrapperLifecycle";
-
+import { ZegoProvider } from "./ZegoContext";
 import type { QueryDict } from "matrix-js-sdk/src/utils";
 import PlatformPeg from "../PlatformPeg";
 import AutoDiscoveryUtils from "../utils/AutoDiscoveryUtils";
@@ -108,6 +108,7 @@ export async function loadApp(fragParams: QueryDict, matrixChatRef: React.Ref<Ma
     return (
         <wrapperOpts.Wrapper>
             <StrictMode>
+            <ZegoProvider>
                 <MatrixChat
                     ref={matrixChatRef}
                     onNewScreen={onNewScreen}
@@ -119,6 +120,9 @@ export async function loadApp(fragParams: QueryDict, matrixChatRef: React.Ref<Ma
                     initialScreenAfterLogin={initialScreenAfterLogin}
                     defaultDeviceDisplayName={defaultDeviceName}
                 />
+            </ZegoProvider>
+
+
             </StrictMode>
         </wrapperOpts.Wrapper>
     );

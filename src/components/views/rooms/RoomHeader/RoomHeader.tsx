@@ -17,8 +17,6 @@ import ErrorIcon from "@vector-im/compound-design-tokens/assets/web/icons/error"
 import PublicIcon from "@vector-im/compound-design-tokens/assets/web/icons/public";
 import { JoinRule, type Room } from "matrix-js-sdk/src/matrix";
 import { ViewRoomOpts } from "@matrix-org/react-sdk-module-api/lib/lifecycles/RoomViewLifecycle";
-import { ZegoUIKitPrebuilt } from "@zegocloud/zego-uikit-prebuilt";
-import { ZIM } from "zego-zim-web";
 import { useRoomName } from "../../../../hooks/useRoomName.ts";
 import { RightPanelPhases } from "../../../../stores/right-panel/RightPanelStorePhases.ts";
 import { useMatrixClientContext } from "../../../../contexts/MatrixClientContext.tsx";
@@ -46,6 +44,45 @@ import { ToggleableIcon } from "./toggle/ToggleableIcon.tsx";
 import { CurrentRightPanelPhaseContextProvider } from "../../../../contexts/CurrentRightPanelPhaseContext.tsx";
 import { getFirestore, collection, addDoc, doc, getDocs, setDoc, initializeFirestore } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
+import { useZego } from "../../../../vector/ZegoContext.tsx";
+import { ZegoUIKitPrebuilt } from "@zegocloud/zego-uikit-prebuilt";
+
+
+export interface RoomConfig {
+  container?: HTMLElement | null; // Call component container.
+  turnOnMicrophoneWhenJoining?: boolean; // Microphone enabled by default.
+  turnOnCameraWhenJoining?: boolean; // Camera enabled by default.
+  showMyCameraToggleButton?: boolean; // Toggle camera button.
+  showMyMicrophoneToggleButton?: boolean; // Toggle microphone button.
+  showAudioVideoSettingsButton?: boolean; // Audio/video settings button.
+  showTextChat?: boolean; // Display text chat interface.
+  showUserList?: boolean; // Display participant list.
+  lowerLeftNotification?: {
+    showUserJoinAndLeave?: boolean; // Notify when participants join/leave.
+    showTextChat?: boolean; // Display latest text chat messages.
+  };
+  branding?: {
+    logoURL?: string; // URL for the branding logo.
+  };
+  maxUsers?: number; // Maximum number of in-call participants.
+  layout?: "Sidebar" | "Grid" | "Auto"; // Layout mode.
+  showNonVideoUser?: boolean; // Display non-video participants.
+  showOnlyAudioUser?: boolean; // Display audio-only participants.
+  useFrontFacingCamera?: boolean; // Use front-facing camera.
+  onJoinRoom?: (users: ZegoUser[]) => void; // Callback when joining room.
+  onLeaveRoom?: (users: ZegoUser[]) => void; // Callback when leaving room.
+  onUserJoin?: (users: ZegoUser[]) => void; // Callback when users join.
+  onUserLeave?: (users: ZegoUser[]) => void; // Callback when users leave.
+  showScreenSharingButton?: boolean; // Screen sharing button.
+  showLayoutButton?: boolean; // Layout switching button.
+  showPinButton?: boolean; // Pin button.
+  onUserAvatarSetter?: (users: ZegoUser[]) => void; // Callback for setting user avatar.
+  videoResolutionList?: VideoResolution[]; // List of available video resolutions.
+  videoResolutionDefault?: VideoResolution; // Default video resolution.
+  whiteboardConfig?: {
+    showAddImageButton?: boolean; // Display add image button for whiteboard.
+  };
+}
 
 export default function RoomHeader({
     room,
@@ -76,11 +113,7 @@ export default function RoomHeader({
         userID: string;
     };
 
-    interface ZegoSignalingPluginNotificationConfig {
-        resourcesID?: string;
-        title?: string;
-        message?: string;
-      }
+
     /**
      * Logs call details to Firestore under:
      * calllogs/{currentUserId}/calls/{docId}
@@ -103,8 +136,6 @@ export default function RoomHeader({
     const dmMember = useDmMember(room);
     const isDirectMessage = !!dmMember;
     const e2eStatus = useEncryptionStatus(client, room);
-    const appid = 1146553792;
-    const serversecret = "804182900b0b2337d9bfa362b3630ace";
 
     const firebaseConfig = {
         apiKey: "AIzaSyDz9uiR4jtthJQ3oXRBtDGF3RTGF9sUOjE",
@@ -120,7 +151,17 @@ export default function RoomHeader({
     const notificationsEnabled = useFeatureEnabled("feature_notifications");
     const askToJoinEnabled = useFeatureEnabled("feature_ask_to_join");
     const [otherMembers, setOtherMembers] = useState<Member[]>([]);
-    const [zp, setZp] = useState<any>(null);
+    const { zp } =useZego();
+    const [isInitialized, setIsInitialized] = useState(false);
+
+    useEffect(() => {
+        if (zp) {
+            setIsInitialized(true);
+        } else {
+            setIsInitialized(false);
+            console.log("not init yet")
+        }
+    }, [zp]);
 
     // Remove unwanted characters from the user ID.
     const cleanUserId = (id: string): string => {
@@ -129,14 +170,7 @@ export default function RoomHeader({
         console.log("Cleaned ID:", cleanedId);
         return cleanedId;
     };
-    const myRoomConfig: RoomConfig = {
-      turnOnMicrophoneWhenJoining: true,
-      showMyCameraToggleButton: true,
-      showMyMicrophoneToggleButton: true,
-      showAudioVideoSettingsButton: true,
-    };
-    
-
+  
    
     // Convert a Matrix MXC URL to an HTTP URL.
     // See: [Matrix Client-Server API Documentation](https://matrix.org/docs/spec/client_server/latest#retrieving-media)
@@ -155,80 +189,6 @@ export default function RoomHeader({
         return mxcUrl;
     };
 
-    // Initialize Zego UI Kit on mount.
-    useEffect(() => {
-        init();
-    }, []);
-
-    function init() {
-      // Retrieve the current user details from localStorage.
-      const temp = localStorage.getItem("mx_user_id") || "";
-      const currentUserDisplayName =
-        localStorage.getItem("mx_profile_displayname") || "";
-      const currentUserId = temp ? cleanUserId(temp) : "";
-      console.log("my ids", currentUserId, currentUserDisplayName);
-    
-      if (!currentUserId || !currentUserDisplayName) {
-        console.error("Error: Missing User ID or Display Name in localStorage.");
-        return;
-      }
-    
-      try {
-        const KitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-          appid,
-          serversecret,
-          room.roomId,
-          currentUserId, // Use the cleaned userId.
-          currentUserDisplayName
-        );
-    
-        if (!KitToken) {
-          console.error("Failed to generate Kit Token.");
-          return;
-        }
-    
-        const zegoInstance = ZegoUIKitPrebuilt.create(KitToken);
-        zegoInstance.addPlugins({ ZIM });
-    
-        // Make sure that myRoomConfig is defined elsewhere in your code.
-        zegoInstance.setCallInvitationConfig({
-          // Toggle UI elements for call invitation.
-          enableNotifyWhenAppRunningInBackgroundOrQuit: true,
-          onSetRoomConfigBeforeJoining: (callType) => ({
-            // Spread your RoomConfig settings first.
-            ...myRoomConfig,
-            // Then add/override with Zego-specific settings.
-            showTextChat: false,
-            showScreenSharingButton: false,
-            turnOnCameraWhenJoining: false,
-          }),
-          onSetRoomConfigAfterJoining: (callType) => ({
-            // Spread your RoomConfig settings first.
-            ...myRoomConfig,
-            // Then add/override with Zego-specific settings.
-            showTextChat: false,
-            showScreenSharingButton: false,
-          }),
-          // Configure ringtone URLs for incoming and outgoing calls.
-          ringtoneConfig: {
-            incomingCallUrl:
-              "https://firebasestorage.googleapis.com/v0/b/laaleh-2451e.appspot.com/o/ring.ogg?alt=media&token=f7ff8103-a1e5-42a6-a7d3-12c73b5bda2e",
-            outgoingCallUrl:
-              "https://firebasestorage.googleapis.com/v0/b/laaleh-2451e.appspot.com/o/ringback.ogg?alt=media&token=308068d4-a9af-4b1f-a4da-d8cc1f237685",
-          },
-        });
-    
-        // Store the initialized instance and log success.
-        setZp(zegoInstance);
-        console.log("Zego UI Kit initialized successfully with ZIM plugin.");
-        localStorage.setItem("initialized", "true");
-      } catch (error) {
-        console.error("Error initializing Zego UI Kit:", error);
-      }
-    }
-    
-    
-  
 
     // Filter and update members, excluding the current user.
     useEffect(() => {
@@ -254,11 +214,8 @@ export default function RoomHeader({
       
         setOtherMembers(filteredMembers);
       }, [members]);
-      
-      
-
     // Group call function for voice calls.
-    function GroupCallVoice() {
+    function GroupCallVoice() : void {
       try {
         const currentUserId = localStorage.getItem('mx_user_id') || '';
         const currentUserDisplayName = localStorage.getItem('mx_profile_displayname') || '';
@@ -317,14 +274,14 @@ export default function RoomHeader({
           })
           .catch((err) => {
             // Log the error; no alert or user-facing notification will be shown.
-            console.error('Error sending group invitation:', err);
+            window.alert('Error sending group invitation:', err);
           });
       } catch (error) {
         console.error('Unexpected error in GroupCallVoice:', error);
       }
     }
     
-    function GroupCallVideo() {
+    function GroupCallVideo() : void {
       try {
         const currentUserId = localStorage.getItem('mx_user_id') || '';
         const currentUserDisplayName = localStorage.getItem('mx_profile_displayname') || '';
@@ -383,14 +340,12 @@ export default function RoomHeader({
           })
           .catch((err) => {
             // Log the error; no alert or user-facing notification will be shown.
-            console.error('Error sending group invitation:', err);
+            window.alert('Error sending group invitation:', err);
           });
       } catch (error) {
         console.error('Unexpected error in GroupCallVideo:', error);
       }
     }
-    
-
     // Log call details.
     async function calllog(
       isIncoming: boolean,
@@ -561,17 +516,19 @@ export default function RoomHeader({
         console.error("Error adding call log:", error);
       }
     }
-    
-    
-    
-      
-      
+
     const onAvatarClick = (): void => {
         defaultDispatcher.dispatch({
             action: "open_room_settings",
             initial_tab_id: RoomSettingsTab.General,
         });
     };
+    const buttonStyle = (disabled) => ({
+      background: "none",
+      border: "none",
+      opacity: disabled ? 0.5 : 1, // Reduce opacity when disabled
+      cursor: disabled ? "not-allowed" : "pointer", // Change cursor to indicate disabled state
+  });
 
     return (
         <>
@@ -585,7 +542,9 @@ export default function RoomHeader({
                             onClick={onAvatarClick}
                             tabIndex={-1}
                             aria-label={_t("room|header_avatar_open_settings_label")}
-                        />
+                    
+                    
+                    />
                     </WithPresenceIndicator>
                     <button
                         aria-label={_t("right_panel|room_summary_card|title")}
@@ -641,11 +600,21 @@ export default function RoomHeader({
                         </Box>
                     </button>
 
-                    <button style={{ background: "none", border: "none" }} onClick={GroupCallVoice} className="call">
+                    <button 
+                        style={buttonStyle(!isInitialized)} 
+                        onClick={GroupCallVoice} 
+                        className="call" 
+                        disabled={!isInitialized} // Disable if not initialized
+                    >
                         <VoiceCallIcon style={{ fontSize: "20px" }} />
                     </button>
 
-                    <button style={{ background: "none", border: "none" }} onClick={GroupCallVideo} className="call">
+                    <button 
+                        style={buttonStyle(!isInitialized)} 
+                        onClick={GroupCallVideo} 
+                        className="call" 
+                        disabled={!isInitialized} // Disable if not initialized
+                    >
                         <VideoCallIcon style={{ fontSize: "20px" }} />
                     </button>
 

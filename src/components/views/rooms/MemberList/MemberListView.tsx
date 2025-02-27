@@ -6,7 +6,7 @@ Please see LICENSE files in the repository root for full details.
 */
 
 import { Form } from "@vector-im/compound-web";
-import React from "react";
+import React,{useEffect} from "react";
 import { List, type ListRowProps } from "react-virtualized/dist/commonjs/List";
 import { AutoSizer } from "react-virtualized";
 
@@ -77,6 +77,13 @@ const MemberListView: React.FC<IProps> = (props: IProps) => {
             </div>
         );
     };
+    function click(): void {
+        console.log("hello world");
+      }
+    
+      useEffect(() => {
+        click(); // Runs once when the component mounts
+      }, []);
 
     return (
         <BaseCard
