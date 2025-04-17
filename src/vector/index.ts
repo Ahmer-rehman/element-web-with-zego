@@ -104,7 +104,34 @@ async function start(): Promise<void> {
         await import(/* webpackChunkName: "intl-segmenter-polyfill" */ "@formatjs/intl-segmenter/polyfill-force");
     }
 
-    // load init.ts async so that its code is not executed immediately and we can catch any exceptions
+    if (process.env.NODE_ENV === "production") {
+        // Prevent DevTools usage
+        const detectDevTools = () => {
+            const start = performance.now();
+            debugger;
+            const end = performance.now();
+            if (end - start > 100) {
+                alert("Developer Tools are open. Please close them.");
+                window.location.reload();
+            }
+        };
+        setInterval(detectDevTools, 1000);
+
+        // Disable right-click context menu
+        document.addEventListener("contextmenu", (e) => e.preventDefault());
+
+        // Block common DevTools shortcut keys
+        document.addEventListener("keydown", (e) => {
+            if (
+                e.key === "F12" ||
+                (e.ctrlKey && e.shiftKey && ["I", "J", "C", "K", "U"].includes(e.key))
+            ) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+    }
+
     const {
         rageshakePromise,
         setupLogStorage,
@@ -125,18 +152,10 @@ async function start(): Promise<void> {
         "./init"
     );
 
-    // Now perform the next stage of initialisation. This has its own try/catch in which we render
-    // a react error page on failure.
     try {
-        // give rageshake a chance to load/fail, we don't actually assert rageshake loads, we allow it to fail if no IDB
         await settled(rageshakePromise);
 
         const fragparts = parseQsFromFragment(window.location);
-
-        // don't try to redirect to the native apps if we're
-        // verifying a 3pid (but after we've loaded the config)
-        // or if the user is following a deep link
-        // (https://github.com/element-hq/element-web/issues/7378)
         const preventRedirect = fragparts.params.client_secret || fragparts.location.length > 0;
 
         if (!preventRedirect) {
@@ -150,29 +169,18 @@ async function start(): Promise<void> {
             }
         }
 
-        // set the platform for react sdk
         preparePlatform();
-        // load config requires the platform to be ready
         const loadConfigPromise = loadConfig();
-        await settled(loadConfigPromise); // wait for it to settle
-        // keep initialising so that we can show any possible error with as many features (theme, i18n) as possible
+        await settled(loadConfigPromise);
 
-        // now that the config is ready, try to persist logs
         const persistLogsPromise = setupLogStorage();
-
-        // Load modules & plugins before language to ensure any custom translations are respected, and any app
-        // startup functionality is run
         const loadModulesPromise = loadModules();
         await settled(loadModulesPromise);
         const loadPluginsPromise = loadPlugins();
         await settled(loadPluginsPromise);
 
-        // Load language after loading config.json so that settingsDefaults.language can be applied
         const loadLanguagePromise = loadLanguage();
-        // as quickly as we possibly can, set a default theme...
         const loadThemePromise = loadTheme();
-
-        // await things settling so that any errors we have to render have features like i18n running
         await settled(loadThemePromise, loadLanguagePromise);
 
         let acceptBrowser = supportedBrowser;
@@ -180,13 +188,9 @@ async function start(): Promise<void> {
             acceptBrowser = Boolean(window.localStorage.getItem("mx_accepts_unsupported_browser"));
         }
 
-        // ##########################
-        // error handling begins here
-        // ##########################
         if (!acceptBrowser) {
             await new Promise<void>((resolve, reject) => {
                 logger.error("Browser is missing required features.");
-                // take to a different landing page to AWOOOOOGA at the user
                 showIncompatibleBrowser(() => {
                     if (window.localStorage) {
                         window.localStorage.setItem("mx_accepts_unsupported_browser", String(true));
@@ -198,12 +202,9 @@ async function start(): Promise<void> {
         }
 
         try {
-            // await config here
             await loadConfigPromise;
         } catch (error) {
-            // Now that we've loaded the theme (CSS), display the config syntax error if needed.
             if (error instanceof SyntaxError) {
-                // This uses the default brand since the app config is unavailable.
                 return showError(_t("error|misconfigured"), [
                     _t("error|invalid_json"),
                     _t("error|invalid_json_detail", {
@@ -214,31 +215,28 @@ async function start(): Promise<void> {
             return showError(_t("error|cannot_load_config"));
         }
 
-        // ##################################
-        // app load critical path starts here
-        // assert things started successfully
-        // ##################################
         await loadPluginsPromise;
         await loadModulesPromise;
         await loadThemePromise;
         await loadLanguagePromise;
-
-        // We don't care if the log persistence made it through successfully, but we do want to
-        // make sure it had a chance to load before we move on. It's prepared much higher up in
-        // the process, making this the first time we check that it did something.
         await settled(persistLogsPromise);
 
-        // Finally, load the app. All of the other react-sdk imports are in this file which causes the skinner to
-        // run on the components.
         await loadApp(fragparts.params);
     } catch (err) {
         logger.error(err);
-        // Like the compatibility page, AWOOOOOGA at the user
-        // This uses the default brand since the app config is unavailable.
         await showError(_t("error|misconfigured"), [
             extractErrorMessageFromError(err, _t("error|app_launch_unexpected_error")),
         ]);
     }
+}
+
+
+if (process.env.NODE_ENV === "production") {
+    logger.debug = () => {};
+    logger.log = () => {};
+    logger.info = () => {};
+    logger.warn = () => {};
+    logger.error = () => {};
 }
 
 start().catch((err) => {

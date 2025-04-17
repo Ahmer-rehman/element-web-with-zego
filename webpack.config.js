@@ -85,32 +85,26 @@ module.exports = (env, argv) => {
     // Establish settings based on the environment and args.
     //
     // argv.mode is always set to "production" by yarn build
-    //      (called to build prod, nightly and develop.element.io)
     // arg.mode is set to "development" by yarn start
-    //      (called by developers, runs the continuous reload script)
     // process.env.CI_PACKAGE is set when yarn build is called from scripts/ci_package.sh
-    //      (called to build nightly and develop.element.io)
-    const nodeEnv = argv.mode;
-    const devMode = nodeEnv !== "production";
-    const enableMinification = !devMode && !process.env.CI_PACKAGE;
+
+    const isProduction = argv.mode === "production";
+    const isCiPackage = !!process.env.CI_PACKAGE;
+    const enableMinification = isProduction && !isCiPackage;
 
     let VERSION = process.env.VERSION;
     if (!VERSION) {
         VERSION = require("./package.json").version;
-        if (devMode) {
-            VERSION += "-dev";
+        if (!isProduction) {
+            VERSION += "-dev"; // ✅ fixed reference from devMode to !isProduction
         }
     }
 
     const development = {};
-    if (devMode) {
-        // Embedded source maps for dev builds, can't use eval-source-map due to CSP
-        development["devtool"] = "inline-source-map";
+    if (!isProduction) {
+        development["devtool"] = false; 
     } else {
-        // High quality source maps in separate .map files which include the source. This doesn't bulk up the .js
-        // payload file size, which is nice for performance but also necessary to get the bundle to a small enough
-        // size that sentry will accept the upload.
-        development["devtool"] = "source-map";
+        development["devtool"] = false; // ✅ disables source maps in production
     }
 
     // Resolve the directories for the js-sdk for later use. We resolve these early, so we
@@ -140,55 +134,44 @@ module.exports = (env, argv) => {
         },
 
         optimization: {
-            // Put all of our CSS into one useful place - this is needed for MiniCssExtractPlugin.
-            // Previously we used a different extraction plugin that did this magic for us, but
-            // now we need to consider that the CSS needs to be bundled up together.
+            // Bundle all CSS into one chunk for better performance
             splitChunks: {
                 cacheGroups: {
                     styles: {
                         name: "styles",
                         test: /\.css$/,
                         enforce: true,
-                        // Do not add `chunks: 'all'` here because you'll break the app entry point.
+                        // Avoid `chunks: 'all'` here to prevent breaking the app entry point
                     },
-
-                    // put the unhomoglyph data in its own file. It contains
-                    // magic characters which mess up line numbers in the
-                    // javascript debugger.
                     unhomoglyph_data: {
                         name: "unhomoglyph_data",
                         test: /unhomoglyph\/data\.json$/,
                         enforce: true,
                         chunks: "all",
                     },
-
                     default: {
                         reuseExistingChunk: true,
                     },
                 },
             },
-
-            // Readable IDs for better debugging
+        
+            // Use named module IDs for better debugging in development
             moduleIds: "named",
-
-            // Minification is normally enabled by default for webpack in production mode, but
-            // we use a CSS optimizer too and need to manage it ourselves.
+        
+            // Enable minification only in production builds (not in CI packaging or dev)
             minimize: enableMinification,
             minimizer: enableMinification
                 ? [
                       new TerserPlugin({
-                          // Already minified and includes an auto-generated license comment
-                          // that the plugin would otherwise pointlessly extract into a separate
-                          // file. We add the actual license using CopyWebpackPlugin below.
+                          // Skip this already-minified external file to avoid redundant processing
                           exclude: "jitsi_external_api.min.js",
                       }),
                       new CssMinimizerPlugin(),
                   ]
                 : [],
-
-            // Set the value of `process.env.NODE_ENV` for libraries like React
-            // See also https://v4.webpack.js.org/configuration/optimization/#optimizationnodeenv
-            nodeEnv,
+        
+            // ✅ Explicitly set NODE_ENV to 'production' or 'development' for libraries like React
+            nodeEnv: isProduction ? "production" : "development",
         },
 
         resolve: {

@@ -218,6 +218,24 @@ export default class LoginComponent extends React.PureComponent<IProps, IState> 
         );
     };
 
+    private autoTriggerSsoLoginIfApplicable(): void {
+        const ssoFlow = this.state.flows?.find(
+            (flow) => flow.type === "m.login.sso" || flow.type === "m.login.cas",
+        ) as SSOFlow | undefined;
+    
+        if (ssoFlow) {
+            const ssoKind = ssoFlow.type === "m.login.cas" ? "cas" : "sso";
+    
+            PlatformPeg.get()?.startSingleSignOn(
+                this.loginLogic.createTemporaryClient(),
+                ssoKind,
+                this.props.fragmentAfterLogin,
+            );
+        }
+    }
+    
+    
+
     public onUsernameChanged = (username: string): void => {
         this.setState({ username });
     };
@@ -333,62 +351,57 @@ export default class LoginComponent extends React.PureComponent<IProps, IState> 
     }
 
     private async initLoginLogic({ hsUrl, isUrl }: ValidatedServerConfig): Promise<void> {
-        let isDefaultServer = false;
-        if (
+        const isDefaultServer =
             this.props.serverConfig.isDefault &&
             hsUrl === this.props.serverConfig.hsUrl &&
-            isUrl === this.props.serverConfig.isUrl
-        ) {
-            isDefaultServer = true;
-        }
-
+            isUrl === this.props.serverConfig.isUrl;
+    
         const fallbackHsUrl = isDefaultServer ? this.props.fallbackHsUrl! : null;
-
+    
         this.setState({
             busy: true,
             loginIncorrect: false,
         });
-
-        await this.checkServerLiveliness({ hsUrl, isUrl });
-
-        const loginLogic = new Login(hsUrl, isUrl, fallbackHsUrl, {
-            defaultDeviceDisplayName: this.props.defaultDeviceDisplayName,
-            delegatedAuthentication: this.props.serverConfig.delegatedAuthentication,
-        });
-        this.loginLogic = loginLogic;
-
-        loginLogic
-            .getFlows()
-            .then(
-                (flows) => {
-                    // look for a flow where we understand all of the steps.
-                    const supportedFlows = flows.filter(this.isSupportedFlow);
-
-                    this.setState({
-                        flows: supportedFlows,
-                    });
-
-                    if (supportedFlows.length === 0) {
-                        this.setState({
-                            errorText: _t("auth|unsupported_auth"),
-                        });
-                    }
-                },
-                (err) => {
-                    this.setState({
-                        errorText: messageForConnectionError(err, this.props.serverConfig),
-                        loginIncorrect: false,
-                        canTryLogin: false,
-                    });
-                },
-            )
-            .finally(() => {
-                this.setState({
-                    busy: false,
-                });
+    
+        try {
+            // Check if the server is alive before attempting login
+            await this.checkServerLiveliness({ hsUrl, isUrl });
+    
+            // Initialize login logic
+            this.loginLogic = new Login(hsUrl, isUrl, fallbackHsUrl, {
+                defaultDeviceDisplayName: this.props.defaultDeviceDisplayName,
+                delegatedAuthentication: this.props.serverConfig.delegatedAuthentication,
             });
+    
+            const flows = await this.loginLogic.getFlows();
+            const supportedFlows = flows.filter(this.isSupportedFlow);
+    
+            if (supportedFlows.length === 0) {
+                this.setState({ errorText: _t("auth|unsupported_auth") });
+            }
+    
+            this.setState({ flows: supportedFlows }, () => {
+                // Optionally trigger SSO login if it's the only supported flow
+                if (
+                    supportedFlows.length === 1 &&
+                    (supportedFlows[0].type === "m.login.sso" || supportedFlows[0].type === "m.login.cas")
+                ) {
+                    this.autoTriggerSsoLoginIfApplicable();
+                }
+            });
+    
+        } catch (error) {
+            // If server check or flow fetch fails
+            this.setState({
+                errorText: messageForConnectionError(error, this.props.serverConfig),
+                loginIncorrect: false,
+                canTryLogin: false,
+            });
+        } finally {
+            this.setState({ busy: false });
+        }
     }
-
+    
     private isSupportedFlow = (flow: ClientLoginFlow): boolean => {
         // technically the flow can have multiple steps, but no one does this
         // for login and loginLogic doesn't support it so we can ignore it.
